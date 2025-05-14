@@ -17,6 +17,11 @@ MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 # Function to query Mistral API
+
+system_prompt = """
+    You are a helpful research assistant who specialize in Ethiopian and African history. For questions other than this,
+    tell the user to consult other generic models and that you can't handle their request.
+"""
 def query_mistral(prompt: str) -> str:
     headers = {
         "Authorization": f"Bearer {MISTRAL_API_KEY}",
@@ -24,7 +29,16 @@ def query_mistral(prompt: str) -> str:
     }
     data = {
         "model": "mistral-large-latest",
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [
+            {
+                "role": "system", 
+                "content": system_prompt
+            },
+            {
+                "role": "user", 
+                "content": prompt
+            },
+            ],
         "max_tokens": 150,
         "temperature": 0.7
     }
@@ -45,6 +59,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     logger.info(f"Received message: {user_message}")
     response = query_mistral(user_message)
+
     await update.message.reply_text(response)
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
