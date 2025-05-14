@@ -3,6 +3,9 @@ import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram.webhook import WebhookUpdate
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -10,11 +13,9 @@ logger = logging.getLogger(__name__)
 
 # Mistral API configuration
 MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"  # Replace with actual Mistral API endpoint
-MISTRAL_API_KEY = "8uUUAObeum99Lujg2h3emScGdkI1kbtj"  # Replace with your Mistral API key
-
-# Telegram bot token
-TELEGRAM_TOKEN = "7514847658:AAGgglEbW1KvMuzBrVnEPmvD0qXl6uAFT6E"  # Replace with your Telegram bot token
-
+# Replace these lines in bot.py
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 # Function to query Mistral API
 def query_mistral(prompt: str) -> str:
     headers = {
