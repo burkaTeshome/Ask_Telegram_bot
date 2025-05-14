@@ -2,9 +2,9 @@ import logging
 import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from telegram.webhook import WebhookUpdate
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Set up logging
@@ -12,10 +12,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Mistral API configuration
-MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"  # Replace with actual Mistral API endpoint
-# Replace these lines in bot.py
+MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+
 # Function to query Mistral API
 def query_mistral(prompt: str) -> str:
     headers = {
@@ -23,8 +23,8 @@ def query_mistral(prompt: str) -> str:
         "Content-Type": "application/json"
     }
     data = {
-        "model": "mistral-large-latest",  # Specify the Mistral model (adjust as needed)
-        "prompt": prompt,
+        "model": "mistral-large-latest",
+        "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 150,
         "temperature": 0.7
     }
@@ -32,7 +32,7 @@ def query_mistral(prompt: str) -> str:
         response = requests.post(MISTRAL_API_URL, headers=headers, json=data)
         response.raise_for_status()
         result = response.json()
-        return result.get("choices", [{}])[0].get("text", "Sorry, I couldn't process the response.")
+        return result.get("choices", [{}])[0].get("message", {}).get("content", "Sorry, I couldn't process the response.")
     except requests.RequestException as e:
         logger.error(f"Mistral API error: {e}")
         return "Error: Unable to get a response from the Mistral API."
@@ -49,11 +49,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Update {update} caused error {context.error}")
-    await update.message.reply_text("An error occurred. Please try again later.")
-
-# Webhook handler
-async def webhook(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await handle_message(update, context)
+    if update.message:
+        await update.message.reply_text("An error occurred. Please try again later.")
 
 def main():
     # Create the Application
@@ -65,9 +62,11 @@ def main():
     application.add_error_handler(error_handler)
 
     # Set up webhook
-    import os
     port = int(os.environ.get("PORT", 8443))
-    webhook_url = os.environ.get("WEBHOOK_URL", "YOUR_RENDER_WEBHOOK_URL")  # Set this after creating the service
+    webhook_url = os.getenv("WEBHOOK_URL")
+    if not webhook_url:
+        logger.error("WEBHOOK_URL not set in environment variables")
+        return
     application.run_webhook(
         listen="0.0.0.0",
         port=port,
