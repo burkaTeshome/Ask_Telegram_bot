@@ -9,11 +9,11 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Mistral API configuration
-MISTRAL_API_URL = "https://api.mixtral.ai/v1/completions"  # Replace with actual Mistral API endpoint
-MISTRAL_API_KEY = "YOUR_MISTRAL_API_KEY"  # Replace with your Mistral API key
+MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"  # Replace with actual Mistral API endpoint
+MISTRAL_API_KEY = "8uUUAObeum99Lujg2h3emScGdkI1kbtj"  # Replace with your Mistral API key
 
 # Telegram bot token
-TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"  # Replace with your Telegram bot token
+TELEGRAM_TOKEN = "7514847658:AAGgglEbW1KvMuzBrVnEPmvD0qXl6uAFT6E"  # Replace with your Telegram bot token
 
 # Function to query Mistral API
 def query_mistral(prompt: str) -> str:
@@ -22,7 +22,7 @@ def query_mistral(prompt: str) -> str:
         "Content-Type": "application/json"
     }
     data = {
-        "model": "mistral-7b",  # Specify the Mistral model (adjust as needed)
+        "model": "mistral-large-latest",  # Specify the Mistral model (adjust as needed)
         "prompt": prompt,
         "max_tokens": 150,
         "temperature": 0.7
