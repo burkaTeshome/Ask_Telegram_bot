@@ -16,10 +16,18 @@ MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Function to query Mistral API
+# Telegram MarkdownV2 special characters that need escaping
+TELEGRAM_SPECIAL_CHARS = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
 
+# Function to escape special characters for Telegram MarkdownV2
+def escape_markdown_v2(text: str) -> str:
+    for char in TELEGRAM_SPECIAL_CHARS:
+        text = text.replace(char, f'\\{char}')
+    return text
+
+# Function to query Mistral API
 system_prompt = """
-    You are a helpful research assistant who specialize in Ethiopian and African history. For questions other than this,
+    You are a helpful research assistant who specializes in Ethiopian and African history. For questions other than this,
     tell the user to consult other generic models and that you can't handle their request.
 """
 def query_mistral(prompt: str) -> str:
@@ -38,7 +46,7 @@ def query_mistral(prompt: str) -> str:
                 "role": "user", 
                 "content": prompt
             },
-            ],
+        ],
         "max_tokens": 150,
         "temperature": 0.7
     }
@@ -46,10 +54,12 @@ def query_mistral(prompt: str) -> str:
         response = requests.post(MISTRAL_API_URL, headers=headers, json=data)
         response.raise_for_status()
         result = response.json()
-        return result.get("choices", [{}])[0].get("message", {}).get("content", "Sorry, I couldn't process the response.")
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "Sorry, I couldn't process the response.")
+        # Escape special characters for Telegram MarkdownV2
+        return escape_markdown_v2(content)
     except requests.RequestException as e:
         logger.error(f"Mistral API error: {e}")
-        return "Error: Unable to get a response from the Mistral API."
+        return escape_markdown_v2("Error: Unable to get a response from the Mistral API.")
 
 # Telegram bot handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -60,7 +70,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Received message: {user_message}")
     response = query_mistral(user_message)
 
-    await update.message.reply_text(response)
+    try:
+        # Try sending with MarkdownV2 parsing
+        await update.message.reply_text(response, parse_mode="MarkdownV2")
+    except Exception as e:
+        logger.error(f"Markdown parsing error: {e}")
+        # Fallback to plain text if MarkdownV2 fails
+        await update.message.reply_text(response, parse_mode=None)
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Update {update} caused error {context.error}")
