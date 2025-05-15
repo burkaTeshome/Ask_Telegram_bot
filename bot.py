@@ -4,6 +4,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import os
 from dotenv import load_dotenv
+import re
 
 load_dotenv()
 
@@ -16,14 +17,21 @@ MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Telegram MarkdownV2 special characters that need escaping
-TELEGRAM_SPECIAL_CHARS = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-
-# Function to escape special characters for Telegram MarkdownV2
-def escape_markdown_v2(text: str) -> str:
-    for char in TELEGRAM_SPECIAL_CHARS:
-        text = text.replace(char, f'\\{char}')
-    return text
+# Function to convert Markdown to Telegram-compatible HTML
+def markdown_to_html(text: str) -> str:
+    # Convert Markdown bold (**text**) to HTML <b>text</b>
+    text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
+    # Convert Markdown italic (*text* or _text_) to HTML <i>text</i>
+    text = re.sub(r'(\*|_)(.*?)\1', r'<i>\2</i>', text)
+    # Convert Markdown headings (### text) to bold HTML
+    text = re.sub(r'#{1,6}\s*(.*?)\n', r'<b>\1</b>\n', text)
+    # Convert numbered list items (e.g., "1. Item") to HTML list
+    text = re.sub(r'(\d+)\.\s*(.*?)\n', r'<b>\1.</b> \2\n', text)
+    # Convert code blocks (```text```) to HTML <pre>text</pre>
+    text = re.sub(r'```(.*?)```', r'<pre>\1</pre>', text, flags=re.DOTALL)
+    # Replace multiple newlines with single newline for Telegram
+    text = re.sub(r'\n\s*\n+', r'\n', text)
+    return text.strip()
 
 # Function to query Mistral API
 system_prompt = """
@@ -55,11 +63,11 @@ def query_mistral(prompt: str) -> str:
         response.raise_for_status()
         result = response.json()
         content = result.get("choices", [{}])[0].get("message", {}).get("content", "Sorry, I couldn't process the response.")
-        # Escape special characters for Telegram MarkdownV2
-        return escape_markdown_v2(content)
+        # Convert Markdown to HTML for Telegram
+        return markdown_to_html(content)
     except requests.RequestException as e:
         logger.error(f"Mistral API error: {e}")
-        return escape_markdown_v2("Error: Unable to get a response from the Mistral API.")
+        return markdown_to_html("Error: Unable to get a response from the Mistral API.")
 
 # Telegram bot handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -71,11 +79,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     response = query_mistral(user_message)
 
     try:
-        # Try sending with MarkdownV2 parsing
-        await update.message.reply_text(response, parse_mode="MarkdownV2")
+        # Send response with HTML parsing
+        await update.message.reply_text(response, parse_mode="HTML")
     except Exception as e:
-        logger.error(f"Markdown parsing error: {e}")
-        # Fallback to plain text if MarkdownV2 fails
+        logger.error(f"HTML parsing error: {e}")
+        # Fallback to plain text if HTML parsing fails
         await update.message.reply_text(response, parse_mode=None)
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
