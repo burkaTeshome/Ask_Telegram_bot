@@ -17,6 +17,9 @@ MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
+# Telegram message length limit
+TELEGRAM_MAX_MESSAGE_LENGTH = 4096
+
 # Function to convert Markdown to Telegram-compatible HTML
 def markdown_to_html(text: str) -> str:
     # Convert Markdown bold (**text**) to HTML <b>text</b>
@@ -32,6 +35,32 @@ def markdown_to_html(text: str) -> str:
     # Replace multiple newlines with single newline for Telegram
     text = re.sub(r'\n\s*\n+', r'\n', text)
     return text.strip()
+
+# Function to split long messages
+def split_message(text: str, max_length: int = TELEGRAM_MAX_MESSAGE_LENGTH) -> list:
+    """Split a message into chunks that fit within Telegram's max message length."""
+    if len(text) <= max_length:
+        return [text]
+    
+    messages = []
+    current_message = ""
+    lines = text.split("\n")
+    
+    for line in lines:
+        # Check if adding the line would exceed the max length
+        if len(current_message) + len(line) + 1 > max_length:
+            # Save the current message and start a new one
+            if current_message:
+                messages.append(current_message.strip())
+                current_message = ""
+        # Add the line to the current message
+        current_message += line + "\n"
+    
+    # Add the final message if it exists
+    if current_message:
+        messages.append(current_message.strip())
+    
+    return messages
 
 # Function to query Mistral API
 system_prompt = """
@@ -55,7 +84,7 @@ def query_mistral(prompt: str) -> str:
                 "content": prompt
             },
         ],
-        "max_tokens": 150,
+        "max_tokens": 1000,  # Increased for longer responses
         "temperature": 0.7
     }
     try:
@@ -78,13 +107,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Received message: {user_message}")
     response = query_mistral(user_message)
 
-    try:
-        # Send response with HTML parsing
-        await update.message.reply_text(response, parse_mode="HTML")
-    except Exception as e:
-        logger.error(f"HTML parsing error: {e}")
-        # Fallback to plain text if HTML parsing fails
-        await update.message.reply_text(response, parse_mode=None)
+    # Split response into chunks if necessary
+    messages = split_message(response, TELEGRAM_MAX_MESSAGE_LENGTH)
+    
+    for msg in messages:
+        try:
+            # Send each chunk with HTML parsing
+            await update.message.reply_text(msg, parse_mode="HTML")
+        except Exception as e:
+            logger.error(f"HTML parsing error: {e}")
+            # Fallback to plain text if HTML parsing fails
+            await update.message.reply_text(msg, parse_mode=None)
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Update {update} caused error {context.error}")
